@@ -1,0 +1,74 @@
+-
+#Deploy and configure database
+	- name: Install MariaDB
+	  yum:
+		name:
+		  - mariadb-server
+		  - python3-PyMySQL
+		state: latest
+	- name: Start MariaDB
+	  service:
+        name: mariadb
+        enabled: true
+        state: started
+    - name: Configure firewall for database
+      command: firewall-cmd --zone=public --permanent --add-port=3306/tcp
+    - name: Reload firewall
+      command: firewall-cmd --reload
+    - name: Configure Database
+    #might have to add community.mysql for this to work
+      community.mysql.mysql_db:
+        name: ecomdb
+        state: present
+    - name: mysql_root_password
+      community.mysql.mysql_db:
+        name: ecomuser
+        password: password
+        priv: '*.*:ALL'
+        state: present
+    - name: Reload privilege tables (flush)
+      command: 'mysql -ne "{{ item }}"'
+      with_items:
+       - FLUSH PRIVILEGES
+      changed_when: False
+    #create the db-load-script.sql in vs code then run below
+    - name: Run db-load-script.sql
+      shell: mysql ecomdb < db-load-script.sql
+    #deploy and configure web
+    - name: Install required packages
+      yum:
+        name:
+         - httpd
+         - php
+        state: latest
+    - name: Update firewalld
+      firewalld:
+        service: httpd
+        permanent: true
+        state: enabled
+    - name: Reload firewall
+      command: firewall-cmd --reload
+    #Configure httpd
+    - name: Change directoryindex to php
+      command: sed -i 's/index.html/index.php/g' /etc/httpd/conf/httpd.conf
+    #Start httpd
+    - name: Start httpd
+      service:
+        name: httpd
+        state: started
+        enabled: yes
+    #download code
+    - name: Install git
+      yum:
+        name:
+        - git
+        state: latest
+    - name: Download code
+      command: git clone https://github.com/kodekloudhub/learning-app-ecommerce.git /var/www/html/
+    # Update index.php
+    - name: Update index.php
+      command: sed -i 's/172.20.1.101/localhost/g' /var/www/html/index.php
+    #test
+    - name: Test website
+      command: curl http://localhost
+    
